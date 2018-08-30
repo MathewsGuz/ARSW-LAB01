@@ -6,10 +6,12 @@
 package edu.eci.arsw.blacklistvalidator;
 
 import edu.eci.arsw.spamkeywordsdatasource.HostBlacklistsDataSourceFacade;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.lang.Math;
 
 /**
  *
@@ -29,7 +31,9 @@ public class HostBlackListsValidator {
      * @param ipaddress suspicious host's IP address.
      * @return  Blacklists numbers where the given host's IP address was found.
      */
-    public List<Integer> checkHost(String ipaddress){
+    public List<Integer> checkHost(String ipaddress, int N) {
+        
+        List<MaThread> rango = new ArrayList();
         
         LinkedList<Integer> blackListOcurrences=new LinkedList<>();
         
@@ -37,20 +41,39 @@ public class HostBlackListsValidator {
         
         HostBlacklistsDataSourceFacade skds=HostBlacklistsDataSourceFacade.getInstance();
         
+        int cantidad= skds.getRegisteredServersCount();
+        
+        int divid = cantidad/N;
         int checkedListsCount=0;
         
-        for (int i=0;i<skds.getRegisteredServersCount() && ocurrencesCount<BLACK_LIST_ALARM_COUNT;i++){
-            checkedListsCount++;
+        for(int i=0; i <N;i++){
+            System.out.print("inicio"+i*divid+" fin "+divid*(i+1));
+            MaThread hilo = new MaThread(ipaddress,i*divid,divid*(i+1),cantidad);
+            rango.add(hilo);
+            hilo.start();
             
-            if (skds.isInBlackListServer(i, ipaddress)){
-                
-                blackListOcurrences.add(i);
-                
-                ocurrencesCount++;
+        }
+        
+        for(MaThread j: rango){
+            try {
+                j.join();
+            } catch (InterruptedException ex) {
+                Logger.getLogger(HostBlackListsValidator.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
         
-        if (ocurrencesCount>=BLACK_LIST_ALARM_COUNT){
+        for(MaThread b: rango){
+            blackListOcurrences.addAll(b.getBlackListOcur());
+            checkedListsCount+=b.getOcurrencesCount();
+        }
+        
+        
+        
+        /*
+        los hilos hacen lo del for Gg  
+        */
+        
+        if (blackListOcurrences.size()>=BLACK_LIST_ALARM_COUNT){
             skds.reportAsNotTrustworthy(ipaddress);
         }
         else{
